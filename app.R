@@ -477,7 +477,7 @@ server <- function(input,output) {
   
   ## TotalDeathsAverted
   output$TotalDeathsAverted <- renderValueBox({
-    datadata <- ts_deaths()
+    datadata <- ts_deaths_averted_PEP()
     valueBox(
       paste0(round(sum(datadata$Median))), "Total Deaths Averted", icon = icon("heart-pulse"),
       color = "red"
