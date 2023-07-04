@@ -7,10 +7,13 @@ library(knitr)
 library(dplyr)
 library(tidyverse)
 
-source("R/HelperFun.R") # functions to help in simulations
-source("R/decision_tree.R") # Decision Tree model & summary functions
+source("Code/decision_tree_ForDavid.R") # Decision Tree model & summary functions
 
-ui <- dashboardBody(
+ui <- dashboardPage(
+  dashboardHeader(title = "IBCM Planning",
+                  titleWidth = 280),
+  dashboardSidebar(disable = TRUE),
+  dashboardBody(
   fluidPage(
     sidebarLayout(
       sidebarPanel(
@@ -18,31 +21,46 @@ ui <- dashboardBody(
         fluidRow(
           column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
                  selectInput("GraphicalOutput", "Graphical Output", 
-                             c("Rabid Dogs" = "rabid_dogs",
-                               "Rabies Exposures" = "exposures",
-                               "Bite Patients" = "bite_patients",
-                               "Healthy Bite Patients" = "healthy_bite_patients",
-                               "Deaths" = "deaths",
-                               "Lives Saved" = "lives_saved",
-                               "Complete PEP Cources" = "PEP_complete",
-                               "Incomplete PEP Cources" = "PEP_incomplete",
-                               "PEP Cost" = "PEP_cost",
-                               "Mass Dog Vaccination Cost" = "MDV_cost",
-                               "Total Costs" = "all_cost")))
+                             c("Complete PEP" = "ts_complete_PEP",
+                               "PEP Cost Per Year" = "ts_cost_PEP_per_year",
+                               "Cost Per Year" = "ts_cost_per_year",
+                               "Deaths" = "ts_deaths",
+                               "Deaths Without PEP" = "ts_deaths_no_PEP",
+                               "Deaths Averted" = "ts_deaths_averted_PEP",
+                               "Exposures" = "ts_exposures",
+                               "Exposures Completing PEP" = "ts_exp_complete",
+                               "Exposures Not Completing PEP" = "ts_exp_incomplete",
+                               "Exposures Starting PEP" = "ts_exp_start",
+                               "Esposures Not Starting PEP" = "ts_exp_no_start",
+                               "Exposures Seeking Care" = "ts_exposures_seek_care",
+                               "Exposures Not Seeking Care" = "ts_exposures_do_not_seek_care",
+                               "Healthy Bites" = "ts_healthy_bites",
+                               "Healthy Bites Completing PEP" = "ts_healthy_complete",
+                               "Healthy Bites Not Completing PEP" = "ts_healthy_incomplete",
+                               "Healthy Bites FP" = "ts_healthy_FP",
+                               "Healthy Bites Seeking Care" = "ts_healthy_seek_care",
+                               "Healthy Bites Not Seeking Care" = "ts_healthy_do_not_seek_care",
+                               "Total Incomplet PEP" = "ts_incomplete_pep",
+                               "MDV Campaign Costs" = "ts_MDV_campaign_cost",
+                               "Rabid Dogs" = "ts_rabid_dogs",
+                               "Rabid Biting Dogs" = "ts_rabid_biting_dogs",
+                               "Rabid Biting Dogs Investigated" = "ts_rabid_biting_investigated",
+                               "Rabid Biting Dogs Found" = "ts_rabid_biting_found",
+                               "Rabid Biting Dogs Testable" = "ts_rabid_biting_testable")))
         ),
         h3("Model Parameters"),
         fluidRow(
-          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("Repeats", "Stochasticity Repeats", value = 500, min = 1, step = 1)),
-          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("Years", "Years", value = 5, min = 1, step = 1))
+          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("Repeats", "Stochasticity Repeats", value = 100, min = 1, step = 1)),
+          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("Years", "Years", value = 7, min = 1, step = 1))
         ),
         h3("Population Inputs"),
         fluidRow(
-          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("Humans", "Human Population", value = 300000, min = 1, step = 1)),
-          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("HDR", "Human Dog Ratio", value = 8, min = 0.01, max = 100000, step = 0.01))
+          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("Humans", "Human Population", value = 500000, min = 1, step = 1)),
+          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericRangeInput("HDR", "Human Dog Ratio", value = c(8,10), min = 0.1, max = 100000, step = 0.1))
         ),
         h3("Epidemiological Inputs"),
         fluidRow(
@@ -51,19 +69,30 @@ ui <- dashboardBody(
           column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
                  numericRangeInput("LR_range", "LR_range???", value = c(6.6,12.8), min = 0, step = 0.1)),
           column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("mu", "Persons bitten per rabid dog", value = 0.38, min = 0, step = 0.01)),
+                 numericInput("mu", "Persons bitten per rabid dog", value = 0.7054917, min = 0, step = 0.001)),
           column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("k", "Probability of infection without PEP (k?)", value = 0.14, min = 0, step = 0.01))
+                 numericInput("k", "Probability of infection without PEP (k?)", value = 0.3862238, min = 0, step = 0.001))
         ),
-        h3("Model Inputs"),
+        h3("Healthy Bites"),
         fluidRow(
-          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("pStart", "pStart", value = 0.6666667, min = 0, max = 1, step = 0.0000001)),
-          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("pComplete", "pComplete", value = 0.3968254, min = 0, max = 1, step = 0.0000001)),
           column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("pDeath", "pDeath", value = 0.1660119, min = 0, max = 1, step = 0.0000001)),
+                 numericInput("pSeekH", "pSeek", value = 0.6, min = 0, max = 1, step = 0.001)),
+          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pStartH", "pStart", value = 0.6666667, min = 0, max = 1, step = 0.001)),
+          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pCompleteH", "pComplete", value = 0.3968254, min = 0, max = 1, step = 0.001))
+        ),
+        h3("Rabid Bites"),
+        fluidRow(
           column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pSeekE", "pSeek", value = 0.7, min = 0, max = 1, step = 0.001)),
+          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pStartE", "pStart", value = 0.6666667, min = 0, max = 1, step = 0.001)),
+          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pCompleteE", "pComplete", value = 0.3968254, min = 0, max = 1, step = 0.001)),
+          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pDeath", "pDeath", value = 0.1660119, min = 0, max = 1, step = 0.001)),
+          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
                  numericInput("pPrevent", "pPrevent", value = 0.986, min = 0, max = 1, step = 0.001))
         ),
         h3("Economic Inputs"),
@@ -73,198 +102,430 @@ ui <- dashboardBody(
           column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
                  numericInput("PartCost", "Incomplete PEP Cost", value = 25, min = 0, step = 0.01)),
           column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("CampCost", "Additional Campaign Costs", value = 0, min = 0, max = 1, step = 0.01)),
-          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
                  numericInput("Inflation", "Inflation", value = 0.03, min = 0, max = 1, step = 0.001))
+        ),
+        h3("Vaccination Inputs"),
+        fluidRow(
+          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericRangeInput("VacDogCost", "Cost Per Vaccination", value = c(2,4), min = 0, step = 0.01)),
+          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("VacCovTarget", "Vaccination Coverage Target", value = 0.0, min = 0, max = 1, step = 0.01))
+        ),
+        h3("IBCM Investiagtions"),
+        fluidRow(
+          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pInvestigate", "Percentage of dogs investigated", value = 0.9, min = 0, step = 0.01)),
+          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pFound", "Percentage of investigated dogs found", value = 0.6, min = 0, max = 1, step = 0.001)),
+          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pTestable", "Percentage of found dogs testable", value = 0.7, min = 0, step = 0.01)),
+          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                 numericInput("pFN", "Percentage of test errors", value = 0.05, min = 0, max = 1, step = 0.001))
         ),
       ),
       mainPanel(
         fluidPage(
           plotOutput("Graph"),
-          valueBoxOutput("TotalRabidDogs"),
+          valueBoxOutput("TotalCost"),
+          valueBoxOutput("TotalCostPEP"),
+          valueBoxOutput("TotalCostMDV"),
           valueBoxOutput("TotalExposures"),
-          valueBoxOutput("TotalBitePatients"),
-          valueBoxOutput("TotalHealthyBitePatients"),
+          valueBoxOutput("TotalExposuresSeek"),
+          valueBoxOutput("TotalExposuresNoSeek"),
+          valueBoxOutput("TotalExposuresStart"),
+          valueBoxOutput("TotalExposuresNoStart"),
+          valueBoxOutput("TotalExposuresComplete"),
           valueBoxOutput("TotalDeaths"),
-          valueBoxOutput("TotalLivesSaved"),
-          valueBoxOutput("TotalPEPComplete"),
-          valueBoxOutput("TotalPEPIncomplete"),
-          valueBoxOutput("TotalPEPCost"),
-          valueBoxOutput("TotalMDVCost"),
-          valueBoxOutput("TotalCost")
+          valueBoxOutput("TotalDeathsNoPEP"),
+          valueBoxOutput("TotalDeathsAverted"),
+          valueBoxOutput("TotalRabidDogs"),
+          valueBoxOutput("TotalRabidBitingDogs"),
+          valueBoxOutput("TotalRabidBitingInvestigated"),
+          valueBoxOutput("TotalRabidBitingFound"),
+          valueBoxOutput("TotalRabidBitingTestable")
         )
       )
     ))
-)
+))
 
 server <- function(input,output) {
   
-  DataFrame1 <- reactive({
+  Results <- reactive({
     
-    DataFrame1 <- decision_tree_ndraw(ndraw = input$Repeats, 
-                                      pop = input$Humans, 
-                                      HDR = input$HDR, 
-                                      horizon = input$Years, 
-                                      discount = input$Inflation,
-                                      rabies_inc = c(input$rabies_inc[1], input$rabies_inc[2]), 
-                                      LR_range = c(input$LR_range[1], input$LR_range[2]), 
-                                      mu = input$mu, 
-                                      k = input$k,
-                                      pStart = input$pStart, 
-                                      pComplete = input$pComplete, 
-                                      pDeath = input$pDeath, 
-                                      pPrevent = input$pPrevent,
-                                      full_cost = input$FullCost, 
-                                      partial_cost = input$PartCost, 
-                                      campaign_cost = input$CampCost)
+    Results <- decision_tree(N = input$Repeats, 
+                                   pop = input$Humans, 
+                                   HDR = c(input$HDR[1], input$HDR[2]), 
+                                   horizon = input$Years, 
+                                   discount = input$Inflation, 
+                                   rabies_inc = c(input$rabies_inc[1], input$rabies_inc[2]), 
+                                   LR_range = c(input$LR_range[1], input$LR_range[2]), 
+                                   mu = input$mu, 
+                                   k = input$k, 
+                                   pSeek_healthy = input$pSeekH, 
+                                   pStart_healthy = input$pStartH, 
+                                   pComplete_healthy = input$pCompleteH, 
+                                   pSeek_exposure = input$pSeekE, 
+                                   pStart_exposure = input$pStartE, 
+                                   pComplete_exposure = input$pCompleteE, 
+                                   pDeath = input$pDeath, 
+                                   pPrevent = input$pPrevent, 
+                                   full_cost = input$FullCost, 
+                                   partial_cost = input$PartCost, 
+                                   vaccinate_dog_cost = c(input$VacDogCost[1], input$VacDogCost[2]), 
+                                   target_vax_cov = input$VacCovTarget, 
+                                   pInvestigate = input$pInvestigate,
+                                   pFound = input$pFound,
+                                   pTestable = input$pTestable,
+                                   pFN = input$pFN)
     
-    DataFrame1
-    
-  })
-  
-  DataFrame2 <- reactive({
-    
-    DF1 <- DataFrame1()
-    
-    column <- input$GraphicalOutput
-    
-    DF1 <- group_by(DF1, years)
-    DataFrame2 <- summarise(DF1, 
-                            "value" = ceiling(mean(!!sym(column), na.rm = TRUE)),
-                            "value_LC" = round(quantile(!!sym(column), probs = 0.025, names = FALSE, na.rm = TRUE), 0),
-                            "value_UC" = round(quantile(!!sym(column), probs = 0.975, names = FALSE, na.rm = TRUE), 0))
-    
-    DataFrame2
+    Results
     
   })
   
-  DataFrame3 <- reactive({
-    
-    DF1 <- DataFrame1()
-    
-    DF1 <- group_by(DF1, years)
-    DataFrame3 <- summarise(DF1, 
-                            "rabid_dogs" = ceiling(mean(rabid_dogs, na.rm = TRUE)),
-                            "exposures" = ceiling(mean(exposures, na.rm = TRUE)),
-                            "bite_patients" = ceiling(mean(bite_patients, na.rm = TRUE)),
-                            "healthy_bite_patients" = ceiling(mean(healthy_bite_patients, na.rm = TRUE)),
-                            "deaths" = ceiling(mean(deaths, na.rm = TRUE)),
-                            "lives_saved" = ceiling(mean(lives_saved, na.rm = TRUE)),
-                            "PEP_complete" = ceiling(mean(PEP_complete, na.rm = TRUE)),
-                            "PEP_incomplete" = ceiling(mean(PEP_incomplete, na.rm = TRUE)),
-                            "PEP_cost" = round(mean(PEP_cost, na.rm = TRUE),2),
-                            "MDV_cost" = round(mean(MDV_cost, na.rm = TRUE),2),
-                            "all_cost" = round(mean(all_cost, na.rm = TRUE),2),
+  ts_complete_PEP <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_complete_PEP', scenario=DF1)
+    DF2
+  })
+
+  ts_cost_PEP_per_year <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_cost_PEP_per_year', scenario=DF1)
+    DF2
+  })
+  
+  ts_cost_per_year <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_cost_per_year', scenario=DF1)
+    DF2
+  })
+  
+  ts_deaths <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_deaths', scenario=DF1)
+    DF2
+  })
+  
+  ts_deaths_averted_PEP <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_deaths_averted_PEP', scenario=DF1)
+    DF2
+  })
+  
+  ts_deaths_no_PEP <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_deaths_no_PEP', scenario=DF1)
+    DF2
+  })
+  
+  ts_exp_complete <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_exp_complete', scenario=DF1)
+    DF2
+  })
+  
+  ts_exp_incomplete <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_exp_incomplete', scenario=DF1)
+    DF2
+  })
+  
+  ts_exp_no_start <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_exp_no_start', scenario=DF1)
+    DF2
+  })
+  
+  ts_exp_start <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_exp_start', scenario=DF1)
+    DF2
+  })
+  
+  ts_exposures <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_exposures', scenario=DF1)
+    DF2
+  })
+  
+  ts_exposures_do_not_seek_care <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_exposures_do_not_seek_care', scenario=DF1)
+    DF2
+  })
+  
+  ts_exposures_seek_care <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_exposures_seek_care', scenario=DF1)
+    DF2
+  })
+  
+  ts_healthy_bites <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_healthy_bites', scenario=DF1)
+    DF2
+  })
+  
+  ts_healthy_complete <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_healthy_complete', scenario=DF1)
+    DF2
+  })
+  
+  ts_healthy_do_not_seek_care <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_healthy_do_not_seek_care', scenario=DF1)
+    DF2
+  })
+  
+  ts_healthy_FP <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_healthy_FP', scenario=DF1)
+    DF2
+  })
+  
+  ts_healthy_incomplete <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_healthy_incomplete', scenario=DF1)
+    DF2
+  })
+  
+  ts_healthy_seek_care <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_healthy_seek_care', scenario=DF1)
+    DF2
+  })
+  
+  ts_incomplere_PEP <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_incomplere_PEP', scenario=DF1)
+    DF2
+  })
+  
+  ts_MDV_campaign_cost <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_MDV_campaign_cost', scenario=DF1)
+    DF2
+  })
+  
+  ts_rabid_biting_dogs <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_rabid_biting_dogs', scenario=DF1)
+    DF2
+  })
+  
+  ts_rabid_biting_found <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_rabid_biting_found', scenario=DF1)
+    DF2
+  })
+  
+  ts_rabid_biting_investigated <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_rabid_biting_investigated', scenario=DF1)
+    DF2
+  })
+  
+  ts_rabid_biting_testable <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_rabid_biting_testable', scenario=DF1)
+    DF2
+  })
+  
+  ts_rabid_dogs <- reactive({
+    DF1 <- Results()
+    DF2 <- select_variable(variable='ts_rabid_dogs', scenario=DF1)
+    DF2
+  })
+  
+  observe({
+    selectedDataframe <- switch(input$GraphicalOutput,
+                                "ts_complete_PEP" = ts_complete_PEP(),
+                                "ts_cost_PEP_per_year" = ts_cost_PEP_per_year(),
+                                "ts_cost_per_year" = ts_cost_per_year(),
+                                "ts_deaths" = ts_deaths(),
+                                "ts_deaths_averted_PEP" = ts_deaths_averted_PEP(),
+                                "ts_deaths_no_PEP" = ts_deaths_no_PEP(),
+                                "ts_exp_complete" = ts_exp_complete(),
+                                "ts_exp_incomplete" = ts_exp_incomplete(),
+                                "ts_exp_no_start" = ts_exp_no_start(),
+                                "ts_exp_start" = ts_exp_start(),
+                                "ts_exposures" = ts_exposures(),
+                                "ts_exposures_do_not_seek_care" = ts_exposures_do_not_seek_care(),
+                                "ts_exposures_seek_care" = ts_exposures_seek_care(),
+                                "ts_healthy_bites" = ts_healthy_bites(),
+                                "ts_healthy_complete" = ts_healthy_complete(),
+                                "ts_healthy_do_not_seek_care" = ts_healthy_do_not_seek_care(),
+                                "ts_healthy_FP" = ts_healthy_FP(),
+                                "ts_healthy_incomplete" = ts_healthy_incomplete(),
+                                "ts_healthy_seek_care" = ts_healthy_seek_care(),
+                                "ts_incomplere_PEP" = ts_incomplere_PEP(),
+                                "ts_MDV_campaign_cost" = ts_MDV_campaign_cost(),
+                                "ts_rabid_biting_dogs" = ts_rabid_biting_dogs(),
+                                "ts_rabid_biting_found" = ts_rabid_biting_found(),
+                                "ts_rabid_biting_investigated" = ts_rabid_biting_investigated(),
+                                "ts_rabid_biting_testable" = ts_rabid_biting_testable(),
+                                "ts_rabid_dogs" = ts_rabid_dogs(),
     )
     
-    DataFrame3
-    
+    output$Graph <- renderPlot({ggplot(selectedDataframe, aes(x = as.numeric(row.names(selectedDataframe)), y = Median)) +
+        geom_line() +
+        geom_ribbon(aes(ymin = LL, ymax = UL), fill = "orchid4", alpha = 0.5) +
+        ylab("Value")+ xlab("Year")+
+        theme_bw()
+    })
   })
   
-  
-  
-  output$Graph <- renderPlot({ggplot(data = DataFrame2(), aes(x=years, y=value)) +
-      geom_line() +
-      geom_ribbon(aes(ymin = value_LC, ymax = value_UC),alpha=0.35) +
-      theme_bw()
-  })
-  
-  ## TotalRabidDogs
-  output$TotalRabidDogs <- renderValueBox({
-    datadata <- DataFrame3()
+  ## TotalCost
+  output$TotalCost <- renderValueBox({
+    datadata <- ts_cost_per_year()
     valueBox(
-      paste0(sum(datadata$rabid_dogs)), "Total Rabid Dogs", icon = icon("users-cog"),
-      color = "blue"
+      paste0(round(sum(datadata$Median),2)), "Total Costs", icon = icon("money-bill-trend-up"),
+      color = "green"
+    )
+  })
+  
+  ## TotalCostPEP
+  output$TotalCostPEP <- renderValueBox({
+    datadata <- ts_cost_PEP_per_year()
+    valueBox(
+      paste0(round(sum(datadata$Median),2)), "Total PEP Costs", icon = icon("money-bill-transfer"),
+      color = "green"
+    )
+  })
+  
+  ## TotalCostMDV
+  output$TotalCostMDV <- renderValueBox({
+    datadata <- ts_MDV_campaign_cost()
+    valueBox(
+      paste0(round(sum(datadata$Median),2)), "Total Vaccination Campaign Costs", icon = icon("money-bill-transfer"),
+      color = "green"
     )
   })
   
   ## TotalExposures
   output$TotalExposures <- renderValueBox({
-    datadata <- DataFrame3()
+    datadata <- ts_exposures()
     valueBox(
-      paste0(sum(datadata$exposures)), "Total Rabies Exposures", icon = icon("users-cog"),
+      paste0(ceiling(sum(datadata$Median))), "Total Rabies Exposures", icon = icon("viruses"),
       color = "blue"
     )
   })
   
-  ## TotalBitePatients
-  output$TotalBitePatients <- renderValueBox({
-    datadata <- DataFrame3()
+  ## TotalExposuresSeek
+  output$TotalExposuresSeek <- renderValueBox({
+    datadata <- ts_exposures_seek_care()
     valueBox(
-      paste0(sum(datadata$bite_patients)), "Total Bite Patients", icon = icon("users-cog"),
+      paste0(round(sum(datadata$Median))), "Total Exposures Seeking Care", icon = icon("house-medical-circle-check"),
       color = "blue"
     )
   })
   
-  ## TotalHealthyBitePatients
-  output$TotalHealthyBitePatients <- renderValueBox({
-    datadata <- DataFrame3()
+  ## TotalExposuresNoSeek
+  output$TotalExposuresNoSeek <- renderValueBox({
+    datadata <- ts_exposures_do_not_seek_care()
     valueBox(
-      paste0(sum(datadata$healthy_bite_patients)), "Total Healthy Bite Patients", icon = icon("users-cog"),
+      paste0(round(sum(datadata$Median))), "Total Exposures Not Seeking Care", icon = icon("house-medical-circle-xmark"),
+      color = "blue"
+    )
+  })
+  
+  ## TotalExposuresStart
+  output$TotalExposuresStart <- renderValueBox({
+    datadata <- ts_exp_start()
+    valueBox(
+      paste0(round(sum(datadata$Median))), "Total Exposures Starting Care", icon = icon("heart-circle-plus"),
+      color = "blue"
+    )
+  })
+  
+  ## TotalExposuresNoStart
+  output$TotalExposuresNoStart <- renderValueBox({
+    datadata <- ts_exp_no_start()
+    valueBox(
+      paste0(round(sum(datadata$Median))), "Total Exposures Not Starting Care", icon = icon("heart-circle-exclamation"),
+      color = "blue"
+    )
+  })
+  
+  ## TotalExposuresComplete
+  output$TotalExposuresComplete <- renderValueBox({
+    datadata <- ts_exp_complete()
+    valueBox(
+      paste0(round(sum(datadata$Median))), "Total Exposures Completing Care", icon = icon("heart-circle-check"),
       color = "blue"
     )
   })
   
   ## TotalDeaths
   output$TotalDeaths <- renderValueBox({
-    datadata <- DataFrame3()
+    datadata <- ts_deaths()
     valueBox(
-      paste0(sum(datadata$deaths)), "Total Deaths", icon = icon("users-cog"),
-      color = "blue"
+      paste0(round(sum(datadata$Median))), "Total Deaths", icon = icon("skull"),
+      color = "red"
     )
   })
   
-  ## TotalLivesSaved
-  output$TotalLivesSaved <- renderValueBox({
-    datadata <- DataFrame3()
+  ## TotalDeathsNoPEP
+  output$TotalDeathsNoPEP <- renderValueBox({
+    datadata <- ts_deaths_no_PEP()
     valueBox(
-      paste0(sum(datadata$lives_saved)), "Total Lives Saved", icon = icon("users-cog"),
-      color = "blue"
+      paste0(round(sum(datadata$Median))), "Total Deaths Without PEP", icon = icon("skull"),
+      color = "red"
     )
   })
   
-  ## TotalPEPComplete
-  output$TotalPEPComplete <- renderValueBox({
-    datadata <- DataFrame3()
+  ## TotalDeathsAverted
+  output$TotalDeathsAverted <- renderValueBox({
+    datadata <- ts_deaths()
     valueBox(
-      paste0(sum(datadata$PEP_complete)), "Complete PEP Cources", icon = icon("users-cog"),
-      color = "blue"
+      paste0(round(sum(datadata$Median))), "Total Deaths Averted", icon = icon("heart-pulse"),
+      color = "red"
     )
   })
   
-  ## TotalPEPIncomplete
-  output$TotalPEPIncomplete <- renderValueBox({
-    datadata <- DataFrame3()
+  ## TotalRabidDogs
+  output$TotalRabidDogs <- renderValueBox({
+    datadata <- ts_rabid_dogs()
     valueBox(
-      paste0(sum(datadata$PEP_incomplete)), "Incomplete PEP Cources", icon = icon("users-cog"),
-      color = "blue"
+      paste0(ceiling(sum(datadata$Median))), "Total Rabid Dogs", icon = icon("dog"),
+      color = "teal"
     )
   })
   
-  ## TotalPEPCost
-  output$TotalPEPCost <- renderValueBox({
-    datadata <- DataFrame3()
+  ## TotalRabidBitingDogs
+  output$TotalRabidBitingDogs <- renderValueBox({
+    datadata <- ts_rabid_biting_dogs()
     valueBox(
-      paste0(sum(datadata$PEP_cost)), "Total PEP Cost", icon = icon("users-cog"),
-      color = "blue"
+      paste0(ceiling(sum(datadata$Median))), "Total Rabid Biting Dogs", icon = icon("shield-dog"),
+      color = "teal"
     )
   })
   
-  ## TotalMDVCost
-  output$TotalMDVCost <- renderValueBox({
-    datadata <- DataFrame3()
+  ## TotalRabidBitingInvestigated
+  output$TotalRabidBitingInvestigated <- renderValueBox({
+    datadata <- ts_rabid_biting_investigated()
     valueBox(
-      paste0(sum(datadata$MDV_cost)), "Total MDV Cost", icon = icon("users-cog"),
-      color = "blue"
+      paste0(ceiling(sum(datadata$Median))), "Total Rabid Biting Dogs Investigated", icon = icon("magnifying-glass"),
+      color = "teal"
     )
   })
   
-  ## TotalCost
-  output$TotalCost <- renderValueBox({
-    datadata <- DataFrame3()
+  ## TotalRabidBitingFound
+  output$TotalRabidBitingFound <- renderValueBox({
+    datadata <- ts_rabid_biting_found()
     valueBox(
-      paste0(sum(datadata$all_cost)), "Total Cost", icon = icon("users-cog"),
-      color = "blue"
+      paste0(ceiling(sum(datadata$Median))), "Total Rabid Biting Dogs Found", icon = icon("magnifying-glass-location"),
+      color = "teal"
+    )
+  })
+  
+  ## TotalRabidBitingTestable
+  output$TotalRabidBitingTestable <- renderValueBox({
+    datadata <- ts_rabid_biting_testable()
+    valueBox(
+      paste0(ceiling(sum(datadata$Median))), "Total Rabid Biting Dogs Testable", icon = icon("microscope"),
+      color = "teal"
     )
   })
   
@@ -272,3 +533,4 @@ server <- function(input,output) {
 
 # Running the App
 shinyApp(ui, server)
+
