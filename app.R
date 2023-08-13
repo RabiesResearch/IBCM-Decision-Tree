@@ -9,9 +9,13 @@ library(tidyverse)
 
 source("Code/decision_tree_ForDavid.R") # Decision Tree model & summary functions
 
+# https://debruine.github.io/shinyintro/reports.html
+# https://stackoverflow.com/questions/57802225/how-to-pass-table-and-plot-in-shiny-app-as-parameters-to-r-markdown
+
 ui <- dashboardPage(
   dashboardHeader(title = "IBCM Planning",
-                  titleWidth = 280),
+                  titleWidth = 280,
+                  ),
   dashboardSidebar(disable = TRUE),
   dashboardBody(
   fluidPage(
@@ -50,9 +54,7 @@ ui <- dashboardPage(
         ),
         h3("Model Parameters"),
         fluidRow(
-          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("Repeats", "Stochasticity Repeats", value = 100, min = 1, step = 1)),
-          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
+          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
                  numericInput("Years", "Years", value = 7, min = 1, step = 1))
         ),
         h3("Population Inputs"),
@@ -61,17 +63,6 @@ ui <- dashboardPage(
                  numericInput("Humans", "Human Population", value = 500000, min = 1, step = 1)),
           column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
                  numericRangeInput("HDR", "Human Dog Ratio", value = c(8,10), min = 0.1, max = 100000, step = 0.1))
-        ),
-        h3("Epidemiological Inputs"),
-        fluidRow(
-          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericRangeInput("rabies_inc", "Rabies Incedence", value = c(0.0075, 0.0125), min = 0, max = 1, step = 0.0001)),
-          column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericRangeInput("LR_range", "LR_range???", value = c(6.6,12.8), min = 0, step = 0.1)),
-          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("mu", "Persons bitten per rabid dog", value = 0.7054917, min = 0, step = 0.001)),
-          column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
-                 numericInput("k", "Probability of infection without PEP (k?)", value = 0.3862238, min = 0, step = 0.001))
         ),
         h3("Healthy Bites"),
         fluidRow(
@@ -152,15 +143,15 @@ server <- function(input,output) {
   
   Results <- reactive({
     
-    Results <- decision_tree(N = input$Repeats, 
+    Results <- decision_tree(N = 100, 
                                    pop = input$Humans, 
                                    HDR = c(input$HDR[1], input$HDR[2]), 
                                    horizon = input$Years, 
                                    discount = input$Inflation, 
-                                   rabies_inc = c(input$rabies_inc[1], input$rabies_inc[2]), 
-                                   LR_range = c(input$LR_range[1], input$LR_range[2]), 
-                                   mu = input$mu, 
-                                   k = input$k, 
+                                   rabies_inc = c(0.0075, 0.0125), 
+                                   LR_range = c(6.6, 12.8), 
+                                   mu = 0.7054917, 
+                                   k = 0.3862238, 
                                    pSeek_healthy = input$pSeekH, 
                                    pStart_healthy = input$pStartH, 
                                    pComplete_healthy = input$pCompleteH, 
