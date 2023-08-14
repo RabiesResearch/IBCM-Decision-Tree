@@ -1,106 +1,141 @@
-####################################################################################
-# HELPER FUNCTIONS
-####################################################################################
-# nEvents() - simulate expected events given observation probability (e.g. deaths total given those observed, or total rabid dogs given surveillance data etc
-# nBites() - simulate persons bitten for given number of rabid dogs (or healthy dogs) given negative binomial process of biting
-# nRabid() - simulate for given number of exposed rabid dogs (or healthy dogs) given negative binomial process of biting
-# sim_ts() - simulate time series (e.g. rabid dogs) over specified horizon, given specific conditions
 
-####################################################################################
-# Simulate expected deaths given observation probability and n observations (deaths)
-nEvents <- function(obsEvents, pObs){
+
+
+# Vaccination coverage attained given a certain target coverage
+vax_coverage_over_x_years <- function(base_vax_cov, target_vax_cov, horizon){
+  # # Check inputs
+  # if(!is.numeric(base_vax_cov) || base_vax_cov < 0 || base_vax_cov > 1) stop("Invalid initial vaccination coverage.")
+  # if(!is.numeric(target_vax_cov) || target_vax_cov < 0 || target_vax_cov > 1) stop("Invalid target vaccination coverage.")
+  # if(!is.numeric(horizon) || horizon <= 0) stop("Horizon must be a positive number.")
   
-  # initialize before starting while loop
-  totalEvents <- 0 
-  Obs <- 0
+  # Linear interpolation between initial and target vaccination coverage over 3 years
+      # # assume it takes 3 years to hit target vaccination coverage
+  interpolated_values <- map2(base_vax_cov, target_vax_cov, seq, length.out = 3)
   
-  # simulate trials (deaths and observation process) until all observed deaths seen
-  while(Obs < obsEvents){
-    totalEvents <- totalEvents +1
-    Obs <- Obs + rbinom(1, 1, pObs)
+  # If horizon is set to less than 3 years
+  if (horizon < 3){
+    annual_vax_cov = interpolated_values[[1]][c(1:horizon)]
+  } else {
+    sustained_values <- rep(target_vax_cov, (horizon - 3))
+    annual_vax_cov <- unlist(append(interpolated_values, sustained_values))
   }
-  totalEvents # print total deaths given input of observed deaths
-}
-## Check results ok:
-# replicate(100, nEvents(25, 0.30))
-
-####################################################################################
-# Simulate expected exposures for a given number of rabid dogs (or bites by healthy dogs)
-nBites <- function(dogs, pBite, pBiteK){
-  sum(rnbinom(n = dogs,  mu = pBite, size = pBiteK))
-}
-
-# pBite = 0.38; pBiteK = 0.2
-# nBites(dogs = 100,  pBite = pBite, pBiteK = pBiteK)
-# # Check results ok:
-# hist(replicate(1000, nBites(50, 0.38, 0.2)), breaks = 1:150)
-# quantile(replicate(1000, nBites(50, 0.38, 0.2)), c(0.025, 0.5, 0.975))
-# # check function can be applied to replicated rabid dogs
-# rabid_vec = c(30,40,50,60,50,60)
-# unlist(lapply(FUN = nBites, pBite = 0.38, pBiteK = 0.2, X = rabid_vec))
-
-####################################################################################
-# Function to simulate expected rabid dogs given exposures
-# Negative binomial function (better but harder to parameterize)
-nRabid_NB <- function(exposures, pBite, pBiteK){
   
-  # initialize before starting while loop
-  bites <- 0 
-  RabidDogs <- 0
-  
-  # simulate trials (bites by rabid dogs) until all exposures occurred
-  while(bites < exposures){
-    RabidDogs <- RabidDogs + 1
-    bites <- bites + nBites(1,  pBite, pBiteK)
+  # Return random values between target and base_vax_cov if target is 0
+  if(target_vax_cov == 0){
+    return(runif(n = horizon, min = target_vax_cov, max = base_vax_cov*1.2))
+  } else {
+    return(annual_vax_cov)
   }
-  RabidDogs 
 }
 
-# Poisson function (worse but simpler)
-nRabid_pois <- function(exposures, pBite){
+
+
+# modifying this to take set budget as input- in place of target coverage 
+vax_coverage_from_budget <- function(campaign_budget, base_vax_cov, vaccinate_dog_cost, dog_pop, horizon, discount){
   
-  # initialize before starting while loop
-  bites <- 0 
-  RabidDogs <- 0
+  vax_coverage_list <- numeric(horizon) # initialize an empty numeric vector of length 'horizon'
   
-  # simulate trials (bites by rabid dogs) until all exposures occurred
-  while(bites < exposures){
-    RabidDogs <- RabidDogs + 1
-    bites <- bites + rpois(1,  pBite)
+  previous_coverage <- base_vax_cov
+  for(year in 1:horizon){
+    # Calculate the discounted budget for the current year
+    discounted_budget <- campaign_budget * (1 - discount)^(year - 1)
+    
+    # Calculate number of dogs that can be vaccinated with the discounted budget
+    dogs_vaccinated <- floor(discounted_budget / vaccinate_dog_cost)
+    
+    # Calculate the maximum potential coverage based on the discounted budget
+    potential_coverage <- min(dogs_vaccinated / dog_pop, 0.8)
+    
+    # Gradually increase the coverage over three years
+    if (year <= 3) {
+      vax_coverage_list[year] <- previous_coverage + (potential_coverage - previous_coverage) * (year/3)
+    } else {
+      vax_coverage_list[year] <- potential_coverage
+    }
+    
+    # Set the previous_coverage for the next iteration
+    previous_coverage <- vax_coverage_list[year]
   }
-  RabidDogs 
+  
+  # Return random values between min(vax_coverage_list) and base_vax_cov if campaign_budget/ target vaccination is 0
+  if(max(vax_coverage_list) < base_vax_cov){
+    return(runif(n = horizon, min = min(vax_coverage_list), max = base_vax_cov*1.2))
+  } else {
+    return(vax_coverage_list)
+  }
 }
 
-# ## Check results ok:
-# par(mfrow = c(2,1))
-# hist(replicate(1000, nRabid_pois(1000, 0.38))) # Poisson biting
-# hist(replicate(1000, nRabid_NB(1000, 0.38, 0.14))) # Negative binomial biting
 
-# ## check function can be applied to replicated exposures
-# exp_vec = c(3,4,5,6,5,6)
-# unlist(lapply(FUN = nRabid_pois, pBite = 0.38, X = exp_vec))
-# unlist(lapply(FUN = nRabid_NB, pBite = 0.38, pBiteK = 0.14, X = exp_vec))
 
-####################################################################################
-# Create timeseries of rabid dogs - based on human population, HDR, specified incidence range & time horizon
-sim_rabies_ts = function(pop, HDR, rabies_inc, horizon){ 
-  dogs <- pop/HDR # Estimate dog population
-  rabies_inc <- runif(1, min = rabies_inc[1], max = rabies_inc[2]) # generate rabies incidence from range (min-max)
-  rabid_dogs <- rpois(horizon, lambda = rabies_inc * dogs) # get rabid dogs per year over time horizon under the incidence specified
-  return(rabid_dogs)
+predict_cases <- function(nreps=N, vax_cov, horizon, dog_pop, rabies_inc, 
+                          vax_model_path = "./data/cases_from_vax_par_samples.csv", 
+                          vax_case_model_path = "./data/cases_from_vax+cases_par_samples.csv"){
+  set.seed(123)
+  
+  # Load model inputs from provided paths
+  vax_model_samples <- read.csv(vax_model_path)
+  vax_case_model_samples <- read.csv(vax_case_model_path)
+  
+  # Initialize output matrix
+  cases_mat <- matrix(NA, nrow = nreps, ncol = horizon)
+  #vc_last_year <- vax_coverage_over_x_years(base_vax_cov, target_vax_cov, horizon)
+  vc_last_year <- vax_cov
+  
+  # Estimate cases 
+  for(rep in 1:nreps){
+    pars_sim <- vax_model_samples[sample.int(nrow(vax_model_samples), size = 1), ]
+    mu <- exp(sum(pars_sim[1:2] * c(1, vc_last_year[1]), log(dog_pop[rep])))
+    cases_mat[rep, 1] <- min(rnbinom(n = 1, mu = mu, size = as.numeric(pars_sim[3])), rabies_inc[2] * dog_pop[rep])
+    
+    pars_sim <- vax_case_model_samples[sample.int(nrow(vax_case_model_samples), size = 1), ]
+    
+    for(year in 2:horizon){
+      mu <- exp(sum(pars_sim[1:3] * c(1, vc_last_year[year], log(cases_mat[rep, year - 1] + 1)), log(dog_pop[rep])))
+      cases_mat[rep, year] <- min(rnbinom(n = 1, mu = mu, size = as.numeric(pars_sim[4])), rabies_inc[2] * dog_pop[rep])
+    }
+  }
+  return(cases_mat)
 }
-# example: times series of rabid dogs from population of ~400k with high human: dog ratio (100:1)
-# baseline of rabies incidence between 0.75-1.25%, over 10y time horizon
-# sim_rabies_ts(400000, 100, c(0.0075, 0.0125), 10)
 
-# Create patient time series for a given population 
-# consider using IBCM data and running for both low- and high-risk bite patient incidence 
-# for range of bite incidence (high or low risk!) simulate bite patient time series 
-sim_patient_ts = function(pop, inc_range, horizon){
-  inc <- runif(horizon, min = inc_range[1], max = inc_range[2]) # select incidence each year over time horizon
-  ts <- unlist(lapply(FUN = rpois, n=1, X = inc/100000 * pop)) # convert incidence into bite patients per year for population
-  return(ts) 
+
+# dog_pop <- matrix(runif(N, 1000, 9877),nrow=N,ncol=horizon)
+# 
+# predict_cases(vax_cov = vax_cov, horizon =horizon, dog_pop= dog_pop, rabies_inc=c(0.0075, 0.0125))
+
+
+
+# Rabid bites
+# Simulate expected exposures for a given number of rabid dogs (
+nBites <- function(dog_pop, pBite, pBiteK){
+  bites_by_dog <- rnbinom(n = dog_pop,  mu = pBite, size = pBiteK)
+  nBites=sum(bites_by_dog)
+  return(nBites)
 }
-# for a population of 400,000 people, with a low risk bite patient incidence range of 20-60/ 100,000, simulate over 20 years
-# sim_patient_ts(400000, inc_range = c(20, 60), horizon = 20) 
+
+# number of biting dogs
+nBiters <- function(dog_pop, pBite, pBiteK){
+  bites_by_dog <- rnbinom(n = dog_pop,  mu = pBite, size = pBiteK)
+  nBiters=length(which(bites_by_dog>0))
+  return(nBiters)
+}
+
+
+horizon_CEA <- function(baseline_sum, comparator_sum){
+  comparator_sum$deaths_avert <- baseline_sum$deaths - comparator_sum$deaths
+  comparator_sum$cost_per_deaths_avert <- comparator_sum$cost/comparator_sum$deaths_avert
+  return(comparator_sum)
+}
+
+
+# # Function to calculate the incremental cost-effectiveness comparing 2 scenarios (baseline vs intervention)
+# calc_ICER <- function(baseline, comparator, discount){ # provide scenario summaries
+#   ICER_summary <- data.frame(
+#     cost_diff = baseline$cost - comparator$cost,
+#     death_diff = baseline$deaths - comparator$deaths
+#   )
+#   ICER_summary$baseline = paste0(baseline$scenario[1], "-", baseline$discount[1], "-", baseline$PEP)
+#   ICER_summary$comparator = paste0(comparator$scenario[1], "-", comparator$discount[1], "-", comparator$PEP)
+#   ICER_summary$CIs = baseline$CIs
+#   return(ICER_summary)
+# }
 
