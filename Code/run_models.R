@@ -16,7 +16,7 @@ pacman::p_load(tidyverse, # cleaning, wrangling
                )
 
 # source model
-source("./scripts/stochastic_decision_tree.R")
+source("./scripts/decision_tree_IBCM.R")
 
 # read shapefile #####
 east_africa_shp <- st_read(dsn="./shapefiles/", layer="ea_shapefile")
