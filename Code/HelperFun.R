@@ -1,6 +1,3 @@
-
-
-
 # Vaccination coverage attained given a certain target coverage
 vax_coverage_over_x_years <- function(base_vax_cov, target_vax_cov, horizon){
   # # Check inputs
@@ -127,6 +124,23 @@ horizon_CEA <- function(baseline_sum, comparator_sum){
   comparator_sum$cost_per_deaths_avert <- comparator_sum$cost/comparator_sum$deaths_avert
   return(comparator_sum)
 }
+
+
+summarise_stochasticity <-  function(my_matrix){
+  out<- apply(my_matrix, 2, quantile, c(0.025, 0.5, 0.975), na.rm=TRUE)
+  rownames(out)<-NULL
+  return(out)
+}
+
+
+select_variable <- function(variable, scenario){
+  my_matrix <- scenario[[variable]]
+  out<- summarise_stochasticity(my_matrix)
+  df <- as.data.frame(t(out))
+  names(df) <- c('LL', 'Median', 'UL')
+  return(df)
+}
+
 
 
 # # Function to calculate the incremental cost-effectiveness comparing 2 scenarios (baseline vs intervention)
