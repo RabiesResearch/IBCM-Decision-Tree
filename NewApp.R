@@ -7,7 +7,7 @@ library(knitr)
 library(dplyr)
 library(tidyverse)
 
-source("Code/decision_tree_IBCM.R") # Decision Tree model & summary functions
+source("Code/stochastic_decision_tree.R") # Decision Tree model & summary functions
 
 # https://debruine.github.io/shinyintro/reports.html
 # https://stackoverflow.com/questions/57802225/how-to-pass-table-and-plot-in-shiny-app-as-parameters-to-r-markdown
@@ -70,7 +70,8 @@ ui <- navbarPage("Program Planning",
                                     tabPanel("Rabid Biting Dogs", plotOutput("CombinedRabidBitingDogsGraph")),
                                     tabPanel("Rabid Biting Dogs Investigated", plotOutput("CombinedRabidBitingDogsInvestigatedGraph")),
                                     tabPanel("Rabid Biting Dogs Found", plotOutput("CombinedRabidBitingDogsFoundGraph")),
-                                    tabPanel("Rabid Biting Dogs Testable", plotOutput("CombinedRabidBitingDogsTestableGraph"))),
+                                    tabPanel("Rabid Biting Dogs Testable", plotOutput("CombinedRabidBitingDogsTestableGraph")),
+                                    tabPanel("Vaccinated Dogs", plotOutput("CombinedVaccinatedDogsGraph"))),
                                   tags$h2("Patients"),
                                   p(style="text-align: justify; font-size = 35px",
                                     "Intro Paragraph thing"),
@@ -128,9 +129,8 @@ server <- function(input,output) {
                              pop = input$Humans, 
                              HDR = c(input$HDR[1], input$HDR[2]), 
                              horizon = input$Years, 
-                             discount = 0, 
-                             rabies_inc = c(0.0075, 0.0125), 
-                             LR_range = c(6.6, 12.8), 
+                             discount = 0,
+                             pBite_healthy=0.1,
                              mu = 0.7054917, 
                              k = 0.3862238, 
                              pSeek_healthy=0.6,
@@ -187,12 +187,19 @@ server <- function(input,output) {
     CR2
   })
   
+  Combined_Vaccinated_Dogs <- reactive({
+    CR <- CombinedResults()
+    CR2 <- select_variable(variable='ts_dogs_vaccinated', scenario=CR)
+    CR2
+  })
+  
   output$CombinedDogsText <- renderText({
     CRD <- Combined_Rabid_Dogs()
     CRDB <- Combined_Rabid_Bite_Dogs()
     CRDI <- Combined_Rabid_Bite_Dogs_Investigated()
     CRDF <- Combined_Rabid_Bite_Dogs_Found()
     CRDT <- Combined_Rabid_Bite_Dogs_Testable()
+    CVD <- Combined_Vaccinated_Dogs()
     paste("Over the", 
           input$Years,
           "years, there will be approximatly",
@@ -205,7 +212,11 @@ server <- function(input,output) {
           ceiling(sum(CRDF$Median)),
           "being found and of these",
           ceiling(sum(CRDT$Median)),
-          "being testable."
+          "being testable.  Additionally, over the",
+          input$Years,
+          "years, there will be approximatly",
+          ceiling(sum(CVD$Median)),
+          "dogs vaccinated in the vaccination campaign."
           )
   })
   
@@ -252,6 +263,15 @@ server <- function(input,output) {
         geom_line() +
         geom_ribbon(aes(ymin = LL, ymax = UL), fill = "orchid4", alpha = 0.5) +
         ylab("Dogs")+ xlab("Year")+
+        theme_bw()})
+  })
+  
+  observe({
+    CR <- Combined_Vaccinated_Dogs()
+    output$CombinedVaccinatedDogsGraph <- renderPlot({ggplot(CR, aes(x = as.numeric(row.names(CR)), y = Median)) +
+        geom_line() +
+        geom_ribbon(aes(ymin = LL, ymax = UL), fill = "orchid4", alpha = 0.5) +
+        ylab("Dogs Vaccinated")+ xlab("Year")+
         theme_bw()})
   })
 
