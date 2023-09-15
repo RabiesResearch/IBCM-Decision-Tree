@@ -18,7 +18,7 @@ source("./scripts/stochastic_decision_tree.R")
 parameters_df <- read.csv("./data/parameters.csv")
 
 # extract parameter values from csv
-run_decision_tree_from_csv <- function(scenario_name, parameters_df, pop=50000000, horizon = 7,base_vax_cov=0.05, N = 100){
+run_decision_tree_from_csv <- function(scenario_name, parameters_df, pop=60000000, horizon = 7,base_vax_cov=0.05, N = 100){
   scenario_parameters <- parameters_df[parameters_df$scenario == scenario_name, ]
   
   decision_tree(
@@ -64,6 +64,7 @@ no_interventions <- run_decision_tree_from_csv("no_interventions", parameters_df
 PEP_IM_free_only <- run_decision_tree_from_csv("PEP_IM_free_only", parameters_df)
 PEP_ID_free_only <- run_decision_tree_from_csv("PEP_ID_free_only", parameters_df)
 MDV_only <- run_decision_tree_from_csv("MDV_only", parameters_df)
+MDV_PEP_IM_free <- run_decision_tree_from_csv("MDV_PEP_IM_free", parameters_df)
 MDV_PEP_ID_free <- run_decision_tree_from_csv("MDV_PEP_ID_free", parameters_df)
 
 
@@ -87,18 +88,15 @@ select_variable <- function(variable, scenario){
 names(no_interventions)
 
 # return time series values 
-df <- select_variable(variable='ts_rabid_dogs', scenario=no_interventions)
-
+df <- select_variable(variable='ts_rabid_dogs', scenario=MDV_only)
 # run this across all variables and store the summarised object instead
-
-
-
 
 # Plotting to check
 ggplot(df, aes(x = as.numeric(row.names(df)), y = Median)) +
   geom_line() +
   geom_ribbon(aes(ymin = LL, ymax = UL), fill = "orchid4", alpha = 0.5) +
-  ylab("Value")+ xlab("Year")+
+  scale_y_continuous(labels = scales::comma) +
+  ylab("ts_rabid_dogs")+ xlab("Year")+
   theme_bw() 
 
 
@@ -129,7 +127,93 @@ compare_scenarios <- function(variable, ...){
   
 }
 
-my_data<- compare_scenarios("ts_MDV_campaign_cost", no_interventions, MDV_only, MDV_PEP_ID_free)
+compare_scenarios("ts_cost_PEP_per_year", PEP_IM_free_only, PEP_ID_free_only)
+
+# Deaths averted by MDV (cumulative over horizon)
+deaths_df <- compare_scenarios("ts_deaths", no_interventions, MDV_only) %>%
+  dplyr::mutate(across(c(LL, Median, UL), as.numeric))
+
+deaths_averted_MDV <- deaths_df[deaths_df$scenario == "no_interventions", ][,1:3] - deaths_df[deaths_df$scenario == "MDV_only", ][,1:3] 
+
+
+# PEP COSTS #####
+# Plot costs under different policy choice across horizon
+pep_costs <- compare_scenarios("ts_cost_PEP_per_year", PEP_IM_free_only, PEP_ID_free_only) %>%
+  as.data.frame() %>%
+  dplyr::mutate(scenario = case_when(
+    scenario == "PEP_IM_free_only" ~ "Intramuscular",
+    scenario == "PEP_ID_free_only" ~ "Intradermal")
+  )
+  
+
+# convert columns to numeric
+pep_costs$LL <- as.numeric(pep_costs$LL)
+pep_costs$Median <- as.numeric(pep_costs$Median)
+pep_costs$UL <- as.numeric(pep_costs$UL)
+
+
+ggplot(pep_costs, aes(x=scenario, y=Median, color=scenario)) +
+  geom_point(size=3)+
+  geom_errorbar(aes(ymin=LL, ymax=UL), width=.2,
+                position=position_dodge(0.05)) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_color_manual(values=c('#999999', '#E69F00'))+
+  labs(title = "Estimated national costs of PEP",
+       y = "US dollars")+
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle=0, color="black", size=13),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(color="black", size=14, face="bold"),
+    axis.text.y = element_text(color="black", size=13),
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "none"
+  ) 
+
+
+# Compare deaths &/ lives saved across policy choices #####
+
+cumulative_deaths <- compare_scenarios("ts_deaths", no_interventions, PEP_ID_free_only, MDV_only, MDV_PEP_ID_free) %>%
+  as.data.frame() %>%
+  dplyr::mutate(scenario = case_when(
+    scenario == "no_interventions" ~ "Status quo",
+    scenario == "PEP_ID_free_only" ~ "free PEP",
+    scenario == "MDV_only" ~ "MDV",
+    scenario == "MDV_PEP_ID_free" ~ "MDV and free PEP")
+  )
+
+# convert columns to numeric
+cumulative_deaths$LL <- as.numeric(cumulative_deaths$LL)
+cumulative_deaths$Median <- as.numeric(cumulative_deaths$Median)
+cumulative_deaths$UL <- as.numeric(cumulative_deaths$UL)
+
+# Reorder the levels of scenario factor
+cumulative_deaths <- cumulative_deaths %>%
+  mutate(scenario = factor(scenario, levels = unique(scenario[order(-Median)])))
+
+
+ggplot(cumulative_deaths, aes(x=scenario, y=Median, color=scenario)) +
+  geom_point(size=3)+
+  geom_errorbar(aes(ymin=LL, ymax=UL), width=.2,
+                position=position_dodge(0.05)) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_color_manual(values = grDevices::rgb(1,0,0, alpha = c(1, 0.8, 0.6, 0.4))) +
+  #scale_color_paletteer_d("colorBlindness::Blue2DarkRed12Steps") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle=0, color="black", size=13),
+    axis.title.y = element_blank(),
+    axis.title.x = element_text(color="black", size=14, face="bold"),
+    axis.text.y = element_text(color="black", size=13),
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "none"
+  ) +
+  coord_flip() +
+  labs(title = "Impact of policy choice",
+       y = "Human deaths")
+
+
+
 
 
 # plot
