@@ -9,13 +9,13 @@ pacman::p_load(tidyverse, # cleaning, wrangling
                )
 
 # source model
-source("./scripts/stochastic_decision_tree.R")
+source("Code/stochastic_decision_tree.R")
 
 
 # scenarios
 
 ## read parameters file
-parameters_df <- read.csv("./data/parameters.csv")
+parameters_df <- read.csv("data/parameters.csv")
 
 # extract parameter values from csv
 run_decision_tree_from_csv <- function(scenario_name, parameters_df, pop=60000000, horizon = 7,base_vax_cov=0.05, N = 100){
@@ -31,7 +31,7 @@ run_decision_tree_from_csv <- function(scenario_name, parameters_df, pop=6000000
     # epidemiological status quo
     #LR_range = c(scenario_parameters$LR_range1, scenario_parameters$LR_range1),
     HDR = c(scenario_parameters$HDR1, scenario_parameters$HDR2),
-    pBite_healthy = scenario_parameters$pBite_healthy,
+    pBite_healthy = 0.01,
     
     mu = scenario_parameters$mu,
     k = scenario_parameters$k,

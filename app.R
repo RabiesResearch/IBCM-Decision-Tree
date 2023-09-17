@@ -41,7 +41,8 @@ ui <- navbarPage("Program Planning",
                                                          "Free Intradermal PEP" = "PEP_ID_free_only",
                                                          "Mass Dog Vaccination Only" = "MDV_only",
                                                          "MDV + Free Intramuscular PEP" = "MDV_PEP_IM_free",
-                                                         "MDV + Free Intradermal PEP" = "MDV_PEP_ID_free")))
+                                                         "MDV + Free Intradermal PEP" = "MDV_PEP_ID_free"))),
+                                    checkboxInput("show_healthy_dogs", "Show Healthy Dogs and Patients", value = TRUE)
                                   ),
                                   h3("Years"),
                                   fluidRow(
@@ -67,7 +68,7 @@ ui <- navbarPage("Program Planning",
                                     column(6,style=list("padding-left: 5px;","padding-right: 5px;"),
                                            numericInput("I_PartCost", "Incomplete PEP Cost", value = 25, min = 0, step = 0.01))
                                   ),
-                                  h3("Vaccination Inputs"),
+                                  h3("Dog Vaccination Inputs"),
                                   fluidRow(
                                     conditionalPanel(
                                       condition = "input.campaign_type == 'MDV_only' | input.campaign_type == 'MDV_PEP_IM_free' | input.campaign_type == 'MDV_PEP_ID_free'",
@@ -80,6 +81,27 @@ ui <- navbarPage("Program Planning",
                                              "If you are running (or would like to run) a mass dog vaccination campaign in tandem with an IBCM program, then select the appropriate campaign at the top."),
                                     column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
                                            numericInput("I_VacCovBase", "Vaccination Coverage Baseline Percentage", value = 5, min = 0, max = 100, step = 1))
+                                  ),
+                                  h3("Time Graph"),
+                                  fluidRow(
+                                    helpText("The model used in this app allows for changes over time.",
+                                             "Select what you would like to see change over time in the graph at the bottom of the page."),
+                                    column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
+                                           selectInput("GraphicalOutput", "Graphical Output", 
+                                                       c("Rabid Dogs" = "ts_rabid_dogs",
+                                                         "Exposures" = "ts_exposures",
+                                                         "Exposures Seeking Care" = "ts_exposures_seek_care",
+                                                         "Exposures Starting Care" = "ts_exp_start",
+                                                         "Exposures Completing Care" = "ts_exp_complete",
+                                                         "Healthy Dog Bites" = "ts_healthy_bites",
+                                                         "Healthy Patients Seeking Care" = "ts_healthy_seek_care",
+                                                         "Healthy Patients Starting Care" = "ts_healthy_start_care",
+                                                         "Healthy Patients Completing Care" = "ts_healthy_complete_care",
+                                                         "Deaths" = "ts_deaths",
+                                                         "Total Costs" = "ts_cost_per_year",
+                                                         "PEP Costs" = "ts_cost_PEP_per_year",
+                                                         "Dog Vaccination Costs" = "ts_MDV_campaign_cost")
+                                           ))
                                   )
                                   
                                 ),
@@ -91,7 +113,7 @@ ui <- navbarPage("Program Planning",
                                     tags$h2("Dogs"),
                                     textOutput("IBCMDogsText"),
                                     plotOutput("IBCMDogsGraph"),
-                                    tags$h2("Patients"),
+                                    tags$h2("Bite Patients"),
                                     p(style="text-align: justify; font-size = 35px",
                                       "Intro Paragraph thing"),
                                     tags$h3("Rabies Exposures"),
@@ -100,12 +122,11 @@ ui <- navbarPage("Program Planning",
                                     tags$h3("Rabies Deaths"),
                                     textOutput("IBCMDeathsText"),
                                     plotOutput("IBCMDeathsGraph"),
-                                    tags$h3("Healthy Bites"),
-                                    textOutput("IBCMHBText"),
-                                    plotOutput("IBCMHBGraph"),
                                     tags$h2("Costs"),
                                     textOutput("IBCMCostText"),
-                                    plotOutput("IBCMCostGraph")
+                                    plotOutput("IBCMCostGraph"),
+                                    tags$h3("Time Graph"),
+                                    plotOutput("IBCMTimeGraph")
                                   )
                                   
                                   
@@ -246,9 +267,21 @@ server <- function(input,output) {
       IR2
     })
     
+    IBCM_Healthy_Bite_Dogs <- reactive({
+      IR <- IBCMResults()
+      IR2 <- select_variable(variable='ts_healthy_bites', scenario=IR)
+      IR2
+    })
+    
     IBCM_Rabid_Bite_Dogs_Investigated <- reactive({
       IR <- IBCMResults()
       IR2 <- select_variable(variable='ts_rabid_biting_investigated', scenario=IR)
+      IR2
+    })
+    
+    IBCM_Healthy_Bite_Dogs_Investigated <- reactive({
+      IR <- IBCMResults()
+      IR2 <- select_variable(variable='ts_healthy_biting_investigated', scenario=IR)
       IR2
     })
     
@@ -258,9 +291,21 @@ server <- function(input,output) {
       IR2
     })
     
+    IBCM_Healthy_Bite_Dogs_Found <- reactive({
+      IR <- IBCMResults()
+      IR2 <- select_variable(variable='ts_healthy_biting_found', scenario=IR)
+      IR2
+    })
+    
     IBCM_Rabid_Bite_Dogs_Testable <- reactive({
       IR <- IBCMResults()
       IR2 <- select_variable(variable='ts_rabid_biting_testable', scenario=IR)
+      IR2
+    })
+    
+    IBCM_Healthy_Bite_Dogs_Testable <- reactive({
+      IR <- IBCMResults()
+      IR2 <- select_variable(variable='ts_healthy_biting_testable', scenario=IR)
       IR2
     })
     
@@ -270,6 +315,9 @@ server <- function(input,output) {
       IRDI <- IBCM_Rabid_Bite_Dogs_Investigated()
       IRDF <- IBCM_Rabid_Bite_Dogs_Found()
       IRDT <- IBCM_Rabid_Bite_Dogs_Testable()
+      IHDI <- IBCM_Healthy_Bite_Dogs_Investigated()
+      IHDF <- IBCM_Healthy_Bite_Dogs_Found()
+      IHDT <- IBCM_Healthy_Bite_Dogs_Testable()
       paste("Over the", 
             input$I_Years,
             "years, there will be approximatly",
@@ -280,28 +328,67 @@ server <- function(input,output) {
             ceiling(sum(IRDI$Median)),
             "will be investigated by a member of the IBCM team.  Not all investigated dogs will be found, with an estimated",
             ceiling(sum(IRDF$Median)),
-            "being found and of these",
+            "being found, and of these",
             ceiling(sum(IRDT$Median)),
-            "being testable."
+            "being testable.",
+            "Inevitably, some healthy dogs will end up being tested as well.  This equates to approximatly",
+            ceiling(sum(IHDI$Median)),
+            "healthy dogs being investigated by a member of the IBCM team.  Of these, an estimated",
+            ceiling(sum(IHDF$Median)),
+            "healthy dogs being found, and",
+            ceiling(sum(IHDT$Median)),
+            "being tested.",
+            "This results in a total of",
+            ceiling(sum(IRDI$Median)) + ceiling(sum(IHDI$Median)),
+            "investigations, and",
+            ceiling(sum(IRDT$Median)) + ceiling(sum(IHDT$Median)),
+            "dogs being tested."
       )
     })
     
-    IBCM_Dog_Graph_Data <- reactive({
+    IBCM_Rabid_Dog_Graph_Data <- reactive({
       IRD <- IBCM_Rabid_Dogs()
       IRDB <- IBCM_Rabid_Bite_Dogs()
       IRDI <- IBCM_Rabid_Bite_Dogs_Investigated()
       IRDF <- IBCM_Rabid_Bite_Dogs_Found()
       IRDT <- IBCM_Rabid_Bite_Dogs_Testable()
-      DataName <- c("Total", "Biting Dogs","Investigated", "Found", "Tested")
-      RabidDogs <- c(sum(IRD$Median),sum(IRDB$Median),sum(IRDI$Median),sum(IRDF$Median),sum(IRDT$Median))
-      IBCM_Dog_Graph_Data <- data.frame(DataName,RabidDogs)
+      DataName <- c("Rabid Dogs", "Biting Dogs","Investigated", "Found", "Tested")
+      Dogs <- c(sum(IRD$Median),sum(IRDB$Median),sum(IRDI$Median),sum(IRDF$Median),sum(IRDT$Median))
+      DogHealth <- c("Rabid","Rabid","Rabid","Rabid","Rabid")
+      IBCM_Rabid_Dog_Graph_Data <- data.frame(DataName,Dogs,DogHealth)
     })
     
+    IBCM_Healthy_Dog_Graph_Data <- reactive({
+      IHDB <- IBCM_Healthy_Bite_Dogs()
+      IHDI <- IBCM_Healthy_Bite_Dogs_Investigated()
+      IHDF <- IBCM_Healthy_Bite_Dogs_Found()
+      IHDT <- IBCM_Healthy_Bite_Dogs_Testable()
+      DataName <- c("Rabid Dogs", "Biting Dogs","Investigated", "Found", "Tested")
+      Dogs <- c(0,sum(IHDB$Median),sum(IHDI$Median),sum(IHDF$Median),sum(IHDT$Median))
+      DogHealth <- c("Healthy","Healthy","Healthy","Healthy","Healthy")
+      IBCM_Healthy_Dog_Graph_Data <- data.frame(DataName,Dogs,DogHealth)
+    })
+    
+    IBCM_Dog_Graph_Data <- reactive({
+      Rabid <- IBCM_Rabid_Dog_Graph_Data()
+      Healthy <- IBCM_Healthy_Dog_Graph_Data()
+      
+      if(input$show_healthy_dogs==FALSE){
+        IBCM_Dog_Graph_Data <- Rabid
+      } else {
+        IBCM_Dog_Graph_Data <- rbind(Rabid,Healthy)
+      }
+      IBCM_Dog_Graph_Data
+    })
+    
+    
     observe({
+      my_colors <- c("Rabid" = "#FF8888", "Healthy" = "#88FF88")
       ID <- IBCM_Dog_Graph_Data()
-      ID$DataName <- factor(ID$DataName, levels = ID$DataName)
-      output$IBCMDogsGraph <- renderPlot({ggplot(ID, aes(x = DataName, y = RabidDogs, fill = DataName)) +
-          geom_bar(stat = "identity") +
+      ID$DataName <- factor(ID$DataName,levels = c("Rabid Dogs", "Biting Dogs", "Investigated", "Found", "Tested"))
+      output$IBCMDogsGraph <- renderPlot({ggplot(ID, aes(x = DataName, y = Dogs, fill = DogHealth)) +
+          geom_bar(stat = "identity", position = "stack") +
+          scale_fill_manual(values = my_colors) +
           ylab("Number of Dogs")+xlab(NULL)+
           theme_bw()})
     })
@@ -315,9 +402,21 @@ server <- function(input,output) {
       IR2
     })
     
+    IBCM_Healthy_Bites <- reactive({
+      IR <- IBCMResults()
+      IR2 <- select_variable(variable='ts_healthy_bites', scenario=IR)
+      IR2
+    })
+    
     IBCM_Exposures_Seek <- reactive({
       IR <- IBCMResults()
       IR2 <- select_variable(variable='ts_exposures_seek_care', scenario=IR)
+      IR2
+    })
+    
+    IBCM_Healthy_Seek <- reactive({
+      IR <- IBCMResults()
+      IR2 <- select_variable(variable='ts_healthy_seek_care', scenario=IR)
       IR2
     })
     
@@ -327,9 +426,21 @@ server <- function(input,output) {
       IR2
     })
     
+    IBCM_Healthy_Start <- reactive({
+      IR <- IBCMResults()
+      IR2 <- select_variable(variable='ts_healthy_start', scenario=IR)
+      IR2
+    })
+    
     IBCM_Exposures_Complete <- reactive({
       IR <- IBCMResults()
       IR2 <- select_variable(variable='ts_exp_complete', scenario=IR)
+      IR2
+    })
+    
+    IBCM_Healthy_Complete <- reactive({
+      IR <- IBCMResults()
+      IR2 <- select_variable(variable='ts_healthy_complete', scenario=IR)
       IR2
     })
     
@@ -339,29 +450,53 @@ server <- function(input,output) {
       IR2
     })
     
+    IBCM_Healthy_Incomplete <- reactive({
+      IR <- IBCMResults()
+      IR2 <- select_variable(variable='ts_healthy_incomplete', scenario=IR)
+      IR2
+    })
+    
     output$IBCMExposuresText <- renderText({
       IE <- IBCM_Exposures()
       IESE <- IBCM_Exposures_Seek()
       IEST <- IBCM_Exposures_Start()
       IEC <- IBCM_Exposures_Complete()
       IEIC <- IBCM_Exposures_Incomplete()
+      IHSE <- IBCM_Healthy_Seek()
+      IHST <- IBCM_Healthy_Start()
+      IHC <- IBCM_Healthy_Complete()
+      IHIC <- IBCM_Healthy_Incomplete()
       paste("Over the", 
             input$I_Years,
             "years, there will be approximatly",
             ceiling(sum(IE$Median)),
             "people exposed to a rabid dog in some way such as a bite.  Of these people, an estimated",
             ceiling(sum(IESE$Median)),
-            "will seek care.  Of these people, an estimated",
+            "will seek care, of which an estimated",
             ceiling(sum(IEST$Median)),
             "will start care in the form of post-exposure prophylaxis (PEP).  Of those starting PEP, approximatly",
             ceiling(sum(IEC$Median)),
             "will complete the full recomended course, with the remaining",
             ceiling(sum(IEIC$Median)),
-            "patients starting but not completing it."
+            "patients starting but not completing it.",
+            "Not all patients presenting at health facilities will have been exposed to a rabid dog.  Approximatly",
+            ceiling(sum(IHSE$Median)),
+            "healthy patients will seek care for a bite, of which an estimated",
+            ceiling(sum(IHST$Median)),
+            "will start care in the form of post-exposure prophylaxis (PEP).  Of those healthy patients starting PEP, approximatly",
+            ceiling(sum(IHC$Median)),
+            "will complete the full  course.",
+            "This results in a total of",
+            ceiling(sum(IESE$Median)) + ceiling(sum(IHSE$Median)),
+            "patients presenting to health facilities, of which",
+            ceiling(sum(IEST$Median)) + ceiling(sum(IHST$Median)),
+            "will start PEP, with",
+            ceiling(sum(IEC$Median)) + ceiling(sum(IHC$Median)),
+            "many pateints completing a course of PEP."
       )
     })
     
-    IBCM_Exposures_Graph_Data <- reactive({
+    IBCM_Rabies_Exposures_Graph_Data <- reactive({
       IE <- IBCM_Exposures()
       IESE <- IBCM_Exposures_Seek()
       IEST <- IBCM_Exposures_Start()
@@ -369,14 +504,41 @@ server <- function(input,output) {
       IEIC <- IBCM_Exposures_Incomplete()
       DataName <- c("People Biten", "Seek Care","Start Care", "Complete Care", "Incomplete Care")
       Exposures <- c(sum(IE$Median),sum(IESE$Median),sum(IEST$Median),sum(IEC$Median),sum(IEIC$Median))
-      IBCM_Exposures_Graph_Data <- data.frame(DataName,Exposures)
+      Health <- c("Rabid","Rabid","Rabid","Rabid","Rabid")
+      IBCM_Rabies_Exposures_Graph_Data <- data.frame(DataName,Exposures,Health)
+    })
+    
+    IBCM_Healthy_Exposures_Graph_Data <- reactive({
+      IE <- IBCM_Healthy_Bites()
+      IESE <- IBCM_Healthy_Seek()
+      IEST <- IBCM_Healthy_Start()
+      IEC <- IBCM_Healthy_Complete()
+      IEIC <- IBCM_Healthy_Incomplete()
+      DataName <- c("People Biten", "Seek Care","Start Care", "Complete Care", "Incomplete Care")
+      Exposures <- c(sum(IE$Median),sum(IESE$Median),sum(IEST$Median),sum(IEC$Median),sum(IEIC$Median))
+      Health <- c("Healthy","Healthy","Healthy","Healthy","Healthy")
+      IBCM_Healthy_Exposures_Graph_Data <- data.frame(DataName,Exposures,Health)
+    })
+    
+    IBCM_Exposures_Graph_Data <- reactive({
+      Rabid <- IBCM_Rabies_Exposures_Graph_Data()
+      Healthy <- IBCM_Healthy_Exposures_Graph_Data()
+      
+      if(input$show_healthy_dogs==FALSE){
+        IBCM_Exposures_Graph_Data <- Rabid
+      } else {
+        IBCM_Exposures_Graph_Data <- rbind(Rabid,Healthy)
+      }
+      IBCM_Exposures_Graph_Data
     })
     
     observe({
+      my_colors <- c("Rabid" = "#FF8888", "Healthy" = "#88FF88")
       ID <- IBCM_Exposures_Graph_Data()
-      ID$DataName <- factor(ID$DataName, levels = ID$DataName)
-      output$IBCMExpGraph <- renderPlot({ggplot(ID, aes(x = DataName, y = Exposures, fill = DataName)) +
-          geom_bar(stat = "identity") +
+      ID$DataName <- factor(ID$DataName, levels = c("People Biten", "Seek Care","Start Care", "Complete Care", "Incomplete Care"))
+      output$IBCMExpGraph <- renderPlot({ggplot(ID, aes(x = DataName, y = Exposures, fill = Health)) +
+          geom_bar(stat = "identity", position = "stack") +
+          scale_fill_manual(values = my_colors) +
           ylab("Number of Patients")+xlab(NULL)+
           theme_bw()})
     })
@@ -437,70 +599,6 @@ server <- function(input,output) {
     })
     
     
-    ###  IBCM HEALTHY BITES  ###  
-    
-    IBCM_Healthy_Seek <- reactive({
-      IR <- IBCMResults()
-      IR2 <- select_variable(variable='ts_exposures_seek_care', scenario=IR)
-      IR2
-    })
-    
-    IBCM_Healthy_Complete <- reactive({
-      IR <- IBCMResults()
-      IR2 <- select_variable(variable='ts_exp_complete', scenario=IR)
-      IR2
-    })
-    
-    IBCM_Healthy_Incomplete <- reactive({
-      IR <- IBCMResults()
-      IR2 <- select_variable(variable='ts_exp_incomplete', scenario=IR)
-      IR2
-    })
-    
-    output$IBCMHBText <- renderText({
-      IHS <- IBCM_Healthy_Seek()
-      IHC <- IBCM_Healthy_Complete()
-      IHIC <- IBCM_Healthy_Incomplete()
-      IEST <- IBCM_Exposures_Start()
-      IEC <- IBCM_Exposures_Complete()
-      paste("Over the", 
-            input$I_Years,
-            "years, there will be approximatly",
-            ceiling(sum(IHS$Median)),
-            "patients seeking rabies treatment who have not been exposed to a rabid dog.  Of these patients, an estimated",
-            ceiling(sum(IHC$Median) + sum(IHIC$Median)),
-            "will start a course of PEP, with approximatly",
-            ceiling(sum(IHC$Median)),
-            "of these patients completing the full course.  This results in a total of",
-            ceiling(sum(IHC$Median) + sum(IHIC$Median) + sum(IEST$Median)),
-            "patients (exposed or not) starting PEP, of which an estimated",
-            ceiling(sum(IHC$Median) + sum(IEC$Median)),
-            "will complete the full course of PEP."
-      )
-    })
-    
-    IBCM_Healthy_Graph_Data <- reactive({
-      IHS <- IBCM_Healthy_Seek()
-      IHC <- IBCM_Healthy_Complete()
-      IHIC <- IBCM_Healthy_Incomplete()
-      IEST <- IBCM_Exposures_Start()
-      IEC <- IBCM_Exposures_Complete()
-      DataName <- c("Healthy Seek Care","Healthy Start Care", "Healthy Complete Care", "Total Starting PEP")
-      Healthy <- c(sum(IHS$Median),(sum(IHC$Median) + sum(IHIC$Median)),sum(IHC$Median),(sum(IHC$Median) + sum(IHIC$Median) + sum(IEST$Median)))
-      IBCM_Exposures_Graph_Data <- data.frame(DataName,Healthy)
-    })
-    
-    observe({
-      ID <- IBCM_Healthy_Graph_Data()
-      ID$DataName <- factor(ID$DataName, levels = ID$DataName)
-      output$IBCMHBGraph <- renderPlot({ggplot(ID, aes(x = DataName, y = Healthy, fill = DataName)) +
-          geom_bar(stat = "identity") +
-          ylab("Patients")+xlab(NULL) +
-          theme_bw()})
-    })
-    
-    
-    
     ###  IBCM Costs  ###  
     
     IBCM_Total_Cost <- reactive({
@@ -557,8 +655,36 @@ server <- function(input,output) {
       ID$DataName <- factor(ID$DataName, levels = ID$DataName)
       output$IBCMCostGraph <- renderPlot({ggplot(ID, aes(x = DataName, y = Cost, fill = DataName)) +
           geom_bar(stat = "identity") +
-          ylab("Patients")+xlab(NULL) +
+          ylab("Cost")+xlab(NULL) +
           theme_bw()})
+    })
+    
+    
+    # Time Graph
+    
+    observe({
+      selectedDataframe <- switch(input$GraphicalOutput,
+                                  "ts_rabid_dogs" = IBCM_Rabid_Dogs(),
+                                  "ts_exposures" = IBCM_Exposures(),
+                                  "ts_exposures_seek_care" = IBCM_Exposures_Seek(),
+                                  "ts_exp_start" = IBCM_Exposures_Start(),
+                                  "ts_exp_complete" = IBCM_Exposures_Complete(),
+                                  "ts_healthy_bites" = IBCM_Healthy_Bite_Dogs(),
+                                  "ts_healthy_seek_care" = IBCM_Healthy_Seek(),
+                                  "ts_healthy_start_care" = IBCM_Healthy_Start(),
+                                  "ts_healthy_complete_care" = IBCM_Healthy_Complete(),
+                                  "ts_deaths" = IBCM_Deaths(),
+                                  "ts_cost_per_year" = IBCM_Total_Cost(),
+                                  "ts_cost_PEP_per_year" = IBCM_PEP_Cost(),
+                                  "ts_MDV_campaign_cost" = IBCM_Vac_Cost()
+      )
+      
+      output$IBCMTimeGraph <- renderPlot({ggplot(selectedDataframe, aes(x = as.numeric(row.names(selectedDataframe)), y = Median)) +
+          geom_line() +
+          geom_ribbon(aes(ymin = LL, ymax = UL), fill = "orchid4", alpha = 0.5) +
+          ylab("Value")+ xlab("Year")+
+          theme_bw()
+      })
     })
     
     

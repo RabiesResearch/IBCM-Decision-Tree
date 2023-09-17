@@ -1,6 +1,3 @@
-
-rm(list=ls())
-
 # Decision tree model that can be applied to create different scenarios 
 
 decision_tree <- function(N, pop, HDR, horizon, discount,#LR_range, 
@@ -15,7 +12,7 @@ decision_tree <- function(N, pop, HDR, horizon, discount,#LR_range,
   
   
 # source helper functions  
-source("./scripts/HelperFun.R")
+source("Code/HelperFun.R")
   
 # SIMULATE TIMESERIES
 
@@ -229,6 +226,7 @@ for (year in seq(1, horizon)){
 }
 
 healthy_no_start <- (ts_healthy_seek_care - healthy_start) + ts_healthy_do_not_seek_care
+ts_healthy_start <- healthy_start  #####
 ts_healthy_incomplete <- healthy_start - ts_healthy_complete
 
 
