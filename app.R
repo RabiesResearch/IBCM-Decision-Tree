@@ -1,6 +1,7 @@
 library(shiny)
 library(shinydashboard)
 library(shinyWidgets)
+library(readr)
 library(ggplot2)
 library(RColorBrewer)
 library(knitr)
@@ -15,14 +16,6 @@ parameters <- read_csv("data/parameters.csv")
 # https://debruine.github.io/shinyintro/reports.html
 # https://stackoverflow.com/questions/57802225/how-to-pass-table-and-plot-in-shiny-app-as-parameters-to-r-markdown
 
-# Define custom names for campaign types
-custom_campaign_names <- c(
-  "No Interventions" = "no_interventions",
-  "Free Intramuscular PEP" = "PEP_IM_free_only",
-  "Free Intradermal PEP" = "PEP_ID_free_only",
-  "Mass Dog Vaccination Only" = "MDV_only",
-  "MDV + Free Intramuscular PEP" = "MDV_PEP_IM_free",
-  "MDV + Free Intradermal PEP" = "MDV_PEP_ID_free")
 
 ui <- navbarPage("Program Planning",
                  tabPanel("IBCM Campaign",
@@ -74,7 +67,7 @@ ui <- navbarPage("Program Planning",
                                       condition = "input.campaign_type == 'MDV_only' | input.campaign_type == 'MDV_PEP_IM_free' | input.campaign_type == 'MDV_PEP_ID_free'",
                                       helpText("Select the vaccination coverage target for the campaign"),
                                       column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
-                                             numericInput("VacCovTarget", "Vaccination Coverage Target", value = 50, min = 0, max = 100, step = 1))
+                                             numericInput("VacCovTarget", "Vaccination Coverage Target", value = 70, min = 0, max = 100, step = 1))
                                     ),
                                     helpText("In most cases, even when a vaccination campaign is not being run, some people activly seek out rabies vaccinations for their dogs.",
                                              "This results in a background vaccination coverage (usually around 5%).",
@@ -109,13 +102,11 @@ ui <- navbarPage("Program Planning",
                                   fluidPage(
                                     tags$h1("IBCM Campaign"),
                                     p(style="text-align: justify; font-size = 35px",
-                                      "Intro Paragraph thing"),
+                                      "This page is designed to help plan and compare different methods of rabies control over several years."),
                                     tags$h2("Dogs"),
                                     textOutput("IBCMDogsText"),
                                     plotOutput("IBCMDogsGraph"),
                                     tags$h2("Bite Patients"),
-                                    p(style="text-align: justify; font-size = 35px",
-                                      "Intro Paragraph thing"),
                                     tags$h3("Rabies Exposures"),
                                     textOutput("IBCMExposuresText"),
                                     plotOutput("IBCMExpGraph"),
@@ -126,6 +117,7 @@ ui <- navbarPage("Program Planning",
                                     textOutput("IBCMCostText"),
                                     plotOutput("IBCMCostGraph"),
                                     tags$h3("Time Graph"),
+                                    textOutput("IBCMTimeText"),
                                     plotOutput("IBCMTimeGraph")
                                   )
                                   
@@ -147,60 +139,29 @@ server <- function(input,output) {
   
   observe({
     
+    # Selecting row on parameters table
     InputTable <- reactive({
       SelectedInput <- input$campaign_type
       InputTable <- parameters[which(parameters$scenario==SelectedInput),]
       InputTable
     })
     
-    pSeekH <- reactive({
-      Params <- InputTable()
-      pSeekH <- Params$pSeek_healthy
-      pSeekH
+    # Selecting equivalent non-vaccination row on parameters table for calculating deaths averted
+    DA_InputTable <- reactive({
+      SelectedInput <- input$campaign_type
+      if(SelectedInput=="MDV_only"){
+        DA_InputTable <- parameters[which(parameters$scenario=="no_interventions"),]
+      } else if(SelectedInput=="MDV_PEP_IM_free"){
+        DA_InputTable <- parameters[which(parameters$scenario=="PEP_IM_free_only"),]
+      } else if(SelectedInput=="MDV_PEP_ID_free"){
+        DA_InputTable <- parameters[which(parameters$scenario=="PEP_ID_free_only"),]
+      } else {
+        DA_InputTable <- parameters[which(parameters$scenario==SelectedInput),]
+      }
+      DA_InputTable
     })
     
-    pCompH <- reactive({
-      Params <- InputTable()
-      pCompH <- Params$pComplete_healthy
-      pCompH
-    })
-    
-    pStartExp <- reactive({
-      Params <- InputTable()
-      pStartExp <- Params$pStart_exposure
-      pStartExp
-    })
-    
-    pCompExp <- reactive({
-      Params <- InputTable()
-      pCompExp <- Params$pComplete_exposure
-      pCompExp
-    })
-    
-    FCost <- reactive({
-      Params <- InputTable()
-      FCost <- Params$full_cost
-      FCost
-    })
-    
-    PCost <- reactive({
-      Params <- InputTable()
-      PCost <- Params$partial_cost
-      PCost
-    })
-    
-    VCost1 <- reactive({
-      Params <- InputTable()
-      VCost1 <- Params$vaccinate_dog_cost1
-      VCost1
-    })
-    
-    VCost2 <- reactive({
-      Params <- InputTable()
-      VCost2 <- Params$vaccinate_dog_cost2
-      VCost2
-    })
-    
+    # Target Coverage
     TargCov <- reactive({
       if(input$campaign_type == "no_interventions" | input$campaign_type == "PEP_IM_free_only" | input$campaign_type == "PEP_ID_free_only"){
         TargCov <- input$I_VacCovBase
@@ -210,18 +171,20 @@ server <- function(input,output) {
       TargCov
     })
     
+    # Running Regular Model
     IBCMResults <- reactive({
       
-      I_pSeekH <- pSeekH()
-      I_pCompH <- pCompH()
-      I_pStartExp <- pStartExp()
-      I_pCompExp <- pCompExp()
-      I_FCost <- FCost()
-      I_PCost <- PCost()
-      I_VCost1 <- VCost1()
-      I_VCost2 <- VCost2()
-      I_TargCov <- TargCov()
+      Table <- InputTable()
       
+      I_pSeekH <- Table$pSeek_healthy
+      I_pCompH <- Table$pComplete_healthy
+      I_pStartExp <- Table$pStart_exposure
+      I_pCompExp <- Table$pComplete_exposure
+      I_FCost <- Table$full_cost
+      I_PCost <- Table$partial_cost
+      I_VCost1 <- Table$vaccinate_dog_cost1
+      I_VCost2 <- Table$vaccinate_dog_cost2
+      I_TargCov <- TargCov()
       
       IBCMResults <- decision_tree(N = 100, 
                                    pop = input$I_Humans, 
@@ -252,6 +215,53 @@ server <- function(input,output) {
       IBCMResults
       
     })
+    
+    # Running Deaths Averted Model
+    DA_IBCMResults <- reactive({
+      
+      DA_Table <- DA_InputTable()
+      
+      DA_pSeekH <- DA_Table$pSeek_healthy
+      DA_pCompH <- DA_Table$pComplete_healthy
+      DA_pStartExp <- DA_Table$pStart_exposure
+      DA_pCompExp <- DA_Table$pComplete_exposure
+      DA_FCost <- DA_Table$full_cost
+      DA_PCost <- DA_Table$partial_cost
+      DA_VCost1 <- DA_Table$vaccinate_dog_cost1
+      DA_VCost2 <- DA_Table$vaccinate_dog_cost2
+      
+      
+      DA_IBCMResults <- decision_tree(N = 100, 
+                                   pop = input$I_Humans, 
+                                   HDR = c(input$I_HDR[1], input$I_HDR[2]), 
+                                   horizon = input$I_Years, 
+                                   discount = 0,
+                                   mu = 0.38, 
+                                   k = 0.14, 
+                                   pSeek_healthy=DA_pSeekH,
+                                   pBite_healthy=0.01,
+                                   pStart_healthy= 0.2,
+                                   pComplete_healthy = DA_pCompH,
+                                   pSeek_exposure=0.7,
+                                   pStart_exposure = DA_pStartExp,
+                                   pComplete_exposure = DA_pCompExp,
+                                   pDeath = 0.1660119,
+                                   pPrevent = 0.986,
+                                   full_cost = DA_FCost, 
+                                   partial_cost = DA_PCost, 
+                                   base_vax_cov = (input$I_VacCovBase / 100),
+                                   vaccinate_dog_cost = c(DA_VCost1, DA_VCost2), 
+                                   target_vax_cov = (input$I_VacCovBase / 100), 
+                                   pInvestigate = 0.9, 
+                                   pFound = 0.6, 
+                                   pTestable = 0.7, 
+                                   pFN = 0.05)
+      
+      DA_IBCMResults
+      
+    })
+    
+    
     
     ###  IBCM DOGS  ###
     
@@ -558,35 +568,71 @@ server <- function(input,output) {
       IR2
     })
     
-    IBCM_Deaths_Averted <- reactive({
+    IBCM_Deaths_Averted_PEP <- reactive({
       IR <- IBCMResults()
       IR2 <- select_variable(variable='ts_deaths_averted_PEP', scenario=IR)
       IR2
     })
     
+    IBCM_Deaths_No_Vac <- reactive({
+      IR <- DA_IBCMResults()
+      IR2 <- select_variable(variable='ts_deaths', scenario=IR)
+      IR2
+    })
+    
     output$IBCMDeathsText <- renderText({
       ID <- IBCM_Deaths()
+      IDNV <- IBCM_Deaths_No_Vac()
       IDP <- IBCM_Deaths_No_PEP()
-      IDA <- IBCM_Deaths_Averted()
-      paste("Over the", 
-            input$I_Years,
-            "years, there will be approximatly",
-            ceiling(sum(ID$Median)),
-            "human deaths due to rabies exposure.  Of these deaths,",
-            ceiling(sum(IDP$Median)),
-            "will be due to a the patient recieving no PEP, with any remaining deaths being due to incomplete or inefective PEP.  However, an estimated",
-            ceiling(sum(IDA$Median)),
-            "lives will be saved by access to PEP."
-      )
+      IDA <- IBCM_Deaths_Averted_PEP()
+      SelectedInput <- input$campaign_type
+      
+      DAVac <- sum(IDNV$Median) - sum(ID$Median)
+      
+      if(SelectedInput=="MDV_only" | SelectedInput=="MDV_PEP_IM_free" | SelectedInput=="MDV_PEP_ID_free"){
+        IBCMDeathsText <- paste("Over the", 
+                                input$I_Years,
+                                "years, there will be approximatly",
+                                ceiling(sum(ID$Median)),
+                                "human deaths due to rabies exposure.  Of these deaths,",
+                                ceiling(sum(IDP$Median)),
+                                "will be due to a the patient recieving no PEP, with any remaining deaths being due to incomplete or inefective PEP.  However, an estimated",
+                                ceiling(sum(IDA$Median)),
+                                "lives will be saved by access to PEP.  Additionally,",
+                                ceiling(DAVac),
+                                "lives will be saved by the mass dog vaccination.")
+      } else {
+        IBCMDeathsText <- paste("Over the", 
+                                input$I_Years,
+                                "years, there will be approximatly",
+                                ceiling(sum(ID$Median)),
+                                "human deaths due to rabies exposure.  Of these deaths,",
+                                ceiling(sum(IDP$Median)),
+                                "will be due to a the patient recieving no PEP, with any remaining deaths being due to incomplete or inefective PEP.  However, an estimated",
+                                ceiling(sum(IDA$Median)),
+                                "lives will be saved by access to PEP.")
+      }
+
     })
     
     IBCM_Deaths_Graph_Data <- reactive({
       ID <- IBCM_Deaths()
+      IDNV <- IBCM_Deaths_No_Vac()
       IDP <- IBCM_Deaths_No_PEP()
-      IDA <- IBCM_Deaths_Averted()
-      DataName <- c("Total", "from no PEP","Averted")
-      Deaths <- c(sum(ID$Median),sum(IDP$Median),sum(IDA$Median))
-      IBCM_Exposures_Graph_Data <- data.frame(DataName,Deaths)
+      IDA <- IBCM_Deaths_Averted_PEP()
+      SelectedInput <- input$campaign_type
+      
+      if(SelectedInput=="MDV_only" | SelectedInput=="MDV_PEP_IM_free" | SelectedInput=="MDV_PEP_ID_free"){
+        DataName <- c("Total Deaths", "Deaths from No PEP", "Deaths Averted by PEP", "Deaths Averted by MDV")
+        Deaths <- c(ceiling(sum(ID$Median)),ceiling(sum(IDP$Median)),ceiling(sum(IDA$Median)),ceiling(sum(IDNV$Median)-sum(ID$Median)))
+        IBCM_Exposures_Graph_Data <- data.frame(DataName,Deaths)
+      } else {
+        DataName <- c("Total Deaths", "Deaths from No PEP", "Averted by PEP")
+        Deaths <- c(ceiling(sum(ID$Median)),ceiling(sum(IDP$Median)),ceiling(sum(IDA$Median)))
+        IBCM_Exposures_Graph_Data <- data.frame(DataName,Deaths)
+      }
+      
+      IBCM_Deaths_Graph_Data <- IBCM_Exposures_Graph_Data
     })
     
     observe({
@@ -623,20 +669,21 @@ server <- function(input,output) {
       ITC <- IBCM_Total_Cost()
       IPC <- IBCM_PEP_Cost()
       IVC <- IBCM_Vac_Cost()
+      
       paste("Over the", 
             input$I_Years,
             "years, the program will cost an estimated total of",
-            round(sum(ITC$Median),2),
+            round(sum(ITC$Median),-1),
             "pounds, with an estimated yearly cost of",
-            round((sum(ITC$Median) / input$I_Years),2),
+            round((sum(ITC$Median) / input$I_Years),-1),
             "pounds.  Splitting this up, this equates to a total of",
-            round(sum(IPC$Median),2),
+            round(sum(IPC$Median),-1),
             "pounds (",
-            round((sum(IPC$Median) / input$I_Years),2),
+            round((sum(IPC$Median) / input$I_Years),-1),
             "pounds per year ) on PEP, and",
-            round(sum(IVC$Median),2),
+            round(sum(IVC$Median),-1),
             "pounds (",
-            round((sum(IVC$Median) / input$I_Years),2),
+            round((sum(IVC$Median) / input$I_Years),-1),
             "pounds per year ) on vaccinations."
       )
     })
@@ -646,7 +693,7 @@ server <- function(input,output) {
       IPC <- IBCM_PEP_Cost()
       IVC <- IBCM_Vac_Cost()
       DataName <- c("Total Cost","PEP Cost", "Dog Vaccination Cost")
-      Cost <- c(round(sum(ITC$Median),2), round(sum(IPC$Median),2), round(sum(IVC$Median),2))
+      Cost <- c(round(sum(ITC$Median),-1), round(sum(IPC$Median),-1), round(sum(IVC$Median),-1))
       IBCM_Exposures_Graph_Data <- data.frame(DataName,Cost)
     })
     
@@ -660,7 +707,47 @@ server <- function(input,output) {
     })
     
     
-    # Time Graph
+    ### Time Graph ###
+
+    TimeTextOutput <- reactive({
+      if(input$GraphicalOutput == "ts_rabid_dogs"){
+        TimeTextOutput <- "Rabid Dogs"
+      } else if(input$GraphicalOutput == "ts_exposures"){
+        TimeTextOutput <- "Rabies Exposures"
+      } else if(input$GraphicalOutput == "ts_exposures_seek_care"){
+        TimeTextOutput <- "Rabies Exposures Seeking Care"
+      } else if(input$GraphicalOutput == "ts_exp_start"){
+        TimeTextOutput <- "Rabies Exposures Starting Care"
+      } else if(input$GraphicalOutput == "ts_exp_complete"){
+        TimeTextOutput <- "Rabies Exposures Completing Care"
+      } else if(input$GraphicalOutput == "ts_healthy_bites"){
+        TimeTextOutput <- "Healthy Dog Bites"
+      } else if(input$GraphicalOutput == "ts_healthy_seek_care"){
+        TimeTextOutput <- "Healthy Patients Seeking Care"
+      } else if(input$GraphicalOutput == "ts_healthy_start_care"){
+        TimeTextOutput <- "Healthy Patients Starting Care"
+      } else if(input$GraphicalOutput == "ts_healthy_complete_care"){
+        TimeTextOutput <- "Healthy Patients Completing Care"
+      } else if(input$GraphicalOutput == "ts_deaths"){
+        TimeTextOutput <- "Human Rabies Deaths"
+      } else if(input$GraphicalOutput == "ts_cost_per_year"){
+        TimeTextOutput <- "Total Costs"
+      } else if(input$GraphicalOutput == "ts_cost_PEP_per_year"){
+        TimeTextOutput <- "Total PEP Costs"
+      } else if(input$GraphicalOutput == "ts_MDV_campaign_cost"){
+        TimeTextOutput <- "Total Dog Vacination Costs"
+      }
+    })
+    
+    output$IBCMTimeText <- renderText({
+      TTO <- TimeTextOutput()
+      paste("This graph shows the number of", 
+            TTO,
+            "over the",
+            input$I_Years,
+            "years being looked at."
+      )
+    })
     
     observe({
       selectedDataframe <- switch(input$GraphicalOutput,
@@ -679,10 +766,12 @@ server <- function(input,output) {
                                   "ts_MDV_campaign_cost" = IBCM_Vac_Cost()
       )
       
+      Y_Lab <- TimeTextOutput()
+      
       output$IBCMTimeGraph <- renderPlot({ggplot(selectedDataframe, aes(x = as.numeric(row.names(selectedDataframe)), y = Median)) +
           geom_line() +
           geom_ribbon(aes(ymin = LL, ymax = UL), fill = "orchid4", alpha = 0.5) +
-          ylab("Value")+ xlab("Year")+
+          ylab(Y_Lab)+ xlab("Year")+
           theme_bw()
       })
     })
