@@ -48,9 +48,9 @@ ui <- navbarPage("Program Planning",
                                     helpText("Input the human population and the Human Dog Ratio.",
                                              "This is used to calculate the estimated dog population."),
                                     column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
-                                           numericInput("I_Humans", "Human Population", value = 500000, min = 1, step = 1)),
+                                           numericInput("I_Humans", "Human Population", value = 350000, min = 1, step = 1)),
                                     column(12,style=list("padding-left: 5px;","padding-right: 5px;"),
-                                           numericRangeInput("I_HDR", "Human Dog Ratio", value = c(8,10), min = 0.1, max = 100000, step = 0.1))
+                                           numericRangeInput("I_HDR", "Human Dog Ratio", value = c(25,35), min = 0.1, max = 100000, step = 0.1))
                                   ),
                                   h3("PEP Costs"),
                                   fluidRow(
@@ -674,17 +674,17 @@ server <- function(input,output) {
             input$I_Years,
             "years, the program will cost an estimated total of",
             round(sum(ITC$Median),-1),
-            "pounds, with an estimated yearly cost of",
+            "US dollars, with an estimated yearly cost of",
             round((sum(ITC$Median) / input$I_Years),-1),
-            "pounds.  Splitting this up, this equates to a total of",
+            "US dollars  Splitting this up, this equates to a total of",
             round(sum(IPC$Median),-1),
-            "pounds (",
+            "US dollars (",
             round((sum(IPC$Median) / input$I_Years),-1),
-            "pounds per year ) on PEP, and",
+            "US dollars per year ) on PEP, and",
             round(sum(IVC$Median),-1),
-            "pounds (",
+            "US dollars (",
             round((sum(IVC$Median) / input$I_Years),-1),
-            "pounds per year ) on vaccinations."
+            "US dollars per year ) on vaccinations."
       )
     })
     
